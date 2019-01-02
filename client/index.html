@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>	
+    <script src="socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div class="container" id="divMainContainer" style="max-height:100%; height: 100vh">
+        <div style="align-items: center">
+            <label>Left mic (&#181;s)</label>
+            <input id="leftMic" type="number">
+            <label>Center mic (&#181;s)</label>
+            <input id="centerMic" type="number">
+            <label>Right mic (&#181;s)</label>
+            <input id="rightMic" type="number">
+            <button id="btnSendTestData">Send</button>
+            <button id="btnClear">Clear</button>
+        </div>
+        <div id="divTargetMain" style="height:100%">
+            <div id="divTarget" style="background-color: grey; height: fit-content;width: fit-content;">
+                <img id="imgTarget" style="height: 100%;" src="images/target.png"/>
+            </div>
+        </div>
+        <footer class="footer" id="fotterId">
+            
+        </footer>
+    </div>
+    <script type="text/javascript">
+        var boom = {};
+        (function(boom) {
+
+            eventTypes = {
+                setting : "setting",
+                targetData : "targetData",
+                clientInfo : "clientInfo"
+            }
+
+            var bulletSize = 20;
+            var bulletSizeMax = 100;
+            var bulletSizeMin = 10;
+            
+            var hits = []; // aktuella träffars position (x,y) uträknat beroende på storleken av tavlan..
+            
+            var pointsFromSrv = [];
+            
+            var socket;
+            
+            var height;
+            var width;
+            var middle;
+            
+            var divTarget;
+            var imgTarget;
+
+            boom.initView = function() {
+                $(window).on("load resize", function () {
+
+                    divTarget = $("#divTarget");
+                    imgTarget = $("#imgTarget");
+                    height = imgTarget.height();
+                    width = imgTarget.width();
+                    middle = (width / 2);
+                    
+                    if(hits.length > 0) {
+                        boom.redrawTestHits();
+                        boom.drawSrvResult();
+                    }
+                });
+
+                // knyt knappar osv..
+                $('#btnClear').on('click', boom.clear);
+                $('#btnSendTestData').on('click', boom.sendTestData);
+            };
+
+            boom.initSocketIo = function() {
+                socket = io();
+                socket.on('numberOfClients', function(value) {
+                    // $('#numberOfClientsValue').text(value)
+                });
+            
+                connectTime = new Date().getTime();
+                //socket.emit('event', eventTypes.clientInfo + "|" + connectTime);
+                boom.sendEvent(eventTypes.clientInfo, connectTime);
+
+                socket.on('clientInfoEvent', function(data) {
+                    if(data && eventTypes[data.type] && data.address && data.date) {
+                        if(data.date == connectTime.toString()) {
+                        //alert(data.connectedClients.join());
+                        
+                        //temp
+                        //var modal = document.getElementById('modalConnected');
+                        //modal.style.display = "block";
+                        //-temp
+                        }
+                    }
+                });
+
+                socket.on('testerEvent', function(data) {
+                    if(data && eventTypes[data.type] && data.data) { // {'resultx': resultx, 'resulty' : resulty};
+                    
+                        msgRcvTime = new Date().getTime();
+                    
+                        // var msgs = data.message.split('#');
+                    
+                        
+
+                        // var points = [];
+                        // $.each(msgs, function(i, d) {
+                        //     var split = d.split(':');
+                        //     points[points.length] = { 'mic': split[0], 'val' : split[1] };
+                        // })
+                    
+                        boom.testDrawDot(data.data.resultx * width / 420, data.data.resulty * height / 297, 2, "type2");
+
+                        // Test.
+                        var rx = data.data.resultx;
+                        var ry = data.data.resulty;
+                        // mic 0
+                        var r0 = Math.sqrt( (rx - 0) * (rx - 0) + (ry - 0) * (ry - 0) );
+                        boom.testDrawDot(0, height, r0, "bajs");
+                        // mic 1
+                        var r1 = Math.sqrt( (rx - 210) * (rx - 210) + (ry - 148.5) * (ry - 148.5) );
+                        boom.testDrawDot(210 * width / 420, height, r1, "bajs");
+                        // mic 2
+                        var r2 = Math.sqrt( (rx - 420) * (rx - 420) + (ry - 297) * (ry - 297) );
+                        boom.testDrawDot(420 * width / 420, height, r2, "bajs");
+
+                        // hit
+                        var r = width / 2 - (Math.max(r0, r1, r2));
+                        boom.testDrawDot(data.data.resultx * width / 420, data.data.resulty * height / 297, r, "bajs");
+
+                        // pointsFromSrv[pointsFromSrv.length] = points;
+                    
+                    // Boom.drawSrvResult(new Array(points));
+                    }
+                });
+            };
+
+            boom.sendEvent = function(eventType, eventData) {
+                if(socket && eventTypes[eventType] && eventData) {
+                    socket.emit('event', eventType + "|" + eventData);
+                }
+            };
+
+            boom.sendTestData = function() {
+                boom.sendEvent(eventTypes.targetData, "0:"+$('#leftMic').val()+"#1:"+$('#centerMic').val()+"#2:"+$('#rightMic').val());
+            };
+
+            boom.testDrawDot = function(x, y, r, type) {
+            $("#divTarget").append(
+                $('<div class="circleBase ' + type + ' noTarget" style="border-radius: 50%; width: 50px; height: 50px; background: rgba(0,255,0,0.200); border: 5px solid green;"></div>')
+                    .css('position', 'absolute')
+                    .css('top',  (y - (r)) + 'px')
+                    .css('left', (x - (r)) + 'px')
+                    .css('width', r*2 + 'px')
+                    .css('height', r*2 + 'px')
+                );
+            };
+
+        } (boom));
+        
+        $(document).ready(function () {
+            boom.initSocketIo();
+            boom.initView();
+        });
+    </script>
+</body>
+</html>
