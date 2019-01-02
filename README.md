@@ -1,2 +1,2 @@
-# SoundRanging
-Boom 2.0
+# sound-ranging
+B.O.O.M 2.0
